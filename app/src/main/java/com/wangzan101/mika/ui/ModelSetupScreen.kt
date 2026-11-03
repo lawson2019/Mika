@@ -118,6 +118,9 @@ fun ModelSetupScreen(
     }
     val ui by vm.state.collectAsState()
     var picking by rememberSaveable { mutableStateOf<ModelRole?>(null) }
+    var groupsOpen by rememberSaveable { mutableStateOf(false) }
+    // "" 表示新建,null 表示不在编辑组
+    var groupEditing by rememberSaveable { mutableStateOf<String?>(null) }
     var openProvider by rememberSaveable { mutableStateOf<String?>(null) }
     var allModels by rememberSaveable { mutableStateOf(false) }
     // 账号登录的面板:在添加表单和服务商详情里都能打开,登录中关掉也不打断登录
@@ -140,6 +143,24 @@ fun ModelSetupScreen(
     val provider = openProvider?.let { id -> ui.providers.firstOrNull { it.id == id } }
     val role = picking
     when {
+        groupEditing != null -> {
+            BackHandler { groupEditing = null }
+            ModelGroupEditorScreen(
+                ui, groupEditing?.takeIf { it.isNotEmpty() },
+                onBack = { groupEditing = null },
+                onSave = { vm.saveGroup(it) },
+                onDelete = { vm.deleteGroup(it) },
+                ensureConfig = { p, m -> vm.ensureConfig(p, m) },
+            )
+        }
+        groupsOpen -> {
+            BackHandler { groupsOpen = false }
+            ModelGroupsScreen(
+                ui, onBack = { groupsOpen = false },
+                onNew = { groupEditing = "" },
+                onEdit = { groupEditing = it },
+            )
+        }
         provider != null -> {
             LaunchedEffect(provider.id) { vm.ensureListed() }
             val accountKind = when {
@@ -187,6 +208,8 @@ fun ModelSetupScreen(
                     },
                     pickManual = { pid, model -> vm.pickManual(role, pid, model) { picking = null } },
                     choose = { vm.choose(role, it); picking = null },
+                    chooseGroup = { vm.chooseGroup(role, it); picking = null },
+                    manageGroups = { picking = null; groupsOpen = true },
                     addProvider = { vm.openForm(); picking = null },
                 ),
                 onBack = { picking = null },
@@ -205,6 +228,7 @@ fun ModelSetupScreen(
                     openProvider = { openProvider = it; allModels = false }, pickRole = { picking = it }, next = onDone, openSpeech = onOpenSpeech,
                     openUsage = onOpenUsage,
                     openSignIn = { signInSheet = it },
+                    openGroups = { groupsOpen = true },
                     setReasoningEffort = vm::setReasoningEffort,
                     setModelContext = vm::setModelContext,
                 ),
@@ -260,6 +284,8 @@ class ModelSetupActions(
     val next: () -> Unit = {},
     /** 打开一家账号登录的说明面板。 */
     val openSignIn: (SignInKind) -> Unit = {},
+    /** 打开模型组管理页;上手流程不显示入口。 */
+    val openGroups: () -> Unit = {},
     val setReasoningEffort: (ModelRole, String?) -> Unit = { _, _ -> },
     val setModelContext: (String, ModelContextSettings) -> Boolean = { _, _ -> false },
 )
@@ -292,6 +318,9 @@ fun ModelSetupContent(ui: ModelSetupUi, onboarding: Boolean, actions: ModelSetup
                     FooterNote(ModelSetupCopy.ONBOARDING_NOTE)
                 } else {
                     RolesSection(ui, onPick, actions.setReasoningEffort, actions.openSpeech, actions.setModelContext)
+                    GroupCard(Modifier.padding(top = 8.dp)) {
+                        ListRow(MikaIcons.Leaf, ModelsCopy.GROUPS, first = true, onClick = actions.openGroups) { RowChevron() }
+                    }
                     ProvidersSection(ui, actions)
                     actions.openUsage?.let { openUsage ->
                         GroupCard {
@@ -337,7 +366,7 @@ private fun ProvidersSection(ui: ModelSetupUi, actions: ModelSetupActions) {
     }
     ui.probeNote?.let { FooterNote(it, Modifier.testTag("setup-probe-note"), color = c.warn) }
     // 刚存下的那家一个模型都没试通过:直接去选主模型(选的时候先试调用)
-    if (ui.pickToProbe != null && ui.roles.main == null) {
+    if (ui.pickToProbe != null && !ui.roles.hasMain) {
         Text(
             ModelSetupCopy.PICK_MAIN,
             Modifier.padding(start = 16.dp, bottom = 12.dp).clickable { actions.pickRole(ModelRole.Main) }.testTag("setup-pick-main").padding(vertical = 4.dp),
