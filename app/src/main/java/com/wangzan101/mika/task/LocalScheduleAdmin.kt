@@ -2,6 +2,7 @@ package com.wangzan101.mika.task
 
 import android.content.Context
 import com.wangzan101.mika.core.trigger.ScheduleAdmin
+import com.wangzan101.mika.core.trigger.ScheduleEdit
 import com.wangzan101.mika.core.trigger.TriggerDefinition
 
 class LocalScheduleAdmin internal constructor(
@@ -9,6 +10,7 @@ class LocalScheduleAdmin internal constructor(
     private val changeEnabled: (String, Boolean) -> Boolean,
     private val delete: (String) -> Unit,
     private val changeTime: (String, Long) -> Unit,
+    private val changePlan: (String, ScheduleEdit) -> TriggerDefinition?,
     private val executeNow: (String) -> Unit,
 ) : ScheduleAdmin {
     constructor(context: Context) : this(
@@ -16,6 +18,7 @@ class LocalScheduleAdmin internal constructor(
         { id, enabled -> TriggerRuntime.setEnabled(context, id, enabled) },
         { id -> TriggerRuntime.remove(context, id) },
         { id, atMs -> TriggerRuntime.reschedule(context, id, atMs) },
+        { id, edit -> TriggerRuntime.edit(context, id, edit) },
         { id -> TriggerRuntime.runNow(context, id) },
     )
 
@@ -38,6 +41,11 @@ class LocalScheduleAdmin internal constructor(
         if (!owned(threadId, id)) return false
         changeTime(id, atMs)
         return true
+    }
+
+    override fun edit(threadId: String, id: String, edit: ScheduleEdit): TriggerDefinition? {
+        if (!owned(threadId, id)) return null
+        return changePlan(id, edit)
     }
 
     override fun runNow(threadId: String, id: String): Boolean {

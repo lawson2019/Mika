@@ -1,8 +1,10 @@
 package com.wangzan101.mika.task
 
+import com.wangzan101.mika.core.trigger.ScheduleEdit
 import com.wangzan101.mika.core.trigger.TriggerDefinition
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -17,6 +19,7 @@ class LocalScheduleAdminTest {
         changeEnabled = { id, enabled -> calls += "enabled:$id:$enabled"; id !in refused },
         delete = { id -> calls += "delete:$id" },
         changeTime = { id, atMs -> calls += "time:$id:$atMs" },
+        changePlan = { id, edit -> calls += "edit:$id:${edit.goal}"; if (id in refused) null else first.copy(goal = edit.goal ?: first.goal) },
         executeNow = { id -> calls += "run:$id" },
     )
 
@@ -31,17 +34,19 @@ class LocalScheduleAdminTest {
         assertTrue(admin.setEnabled("thread-a", first.id, false))
         assertTrue(admin.setEnabled("thread-a", first.id, true))
         assertTrue(admin.reschedule("thread-a", first.id, 3000))
+        assertEquals("新内容", admin.edit("thread-a", first.id, ScheduleEdit(goal = "新内容"))!!.goal)
         assertTrue(admin.runNow("thread-a", first.id))
         assertTrue(admin.remove("thread-a", first.id))
         assertEquals(listOf(
-            "enabled:plan-a:false", "enabled:plan-a:true", "time:plan-a:3000", "run:plan-a", "delete:plan-a",
+            "enabled:plan-a:false", "enabled:plan-a:true", "time:plan-a:3000", "edit:plan-a:新内容", "run:plan-a", "delete:plan-a",
         ), calls)
     }
 
     @Test fun runtimeRefusalIsPassedBack() {
         refused += first.id
         assertFalse(admin.setEnabled("thread-a", first.id, true))
-        assertEquals(listOf("enabled:plan-a:true"), calls)
+        assertNull(admin.edit("thread-a", first.id, ScheduleEdit(goal = "新内容")))
+        assertEquals(listOf("enabled:plan-a:true", "edit:plan-a:新内容"), calls)
     }
 
     @Test fun foreignAndMissingPlansNeverReachTheRuntime() {
@@ -50,6 +55,7 @@ class LocalScheduleAdminTest {
             assertFalse(admin.setEnabled("thread-a", id, true))
             assertFalse(admin.remove("thread-a", id))
             assertFalse(admin.reschedule("thread-a", id, 3000))
+            assertNull(admin.edit("thread-a", id, ScheduleEdit(goal = "新内容")))
             assertFalse(admin.runNow("thread-a", id))
         }
         assertTrue(calls.isEmpty())

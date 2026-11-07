@@ -6,6 +6,7 @@ interface ScheduleAdmin {
     fun setEnabled(threadId: String, id: String, enabled: Boolean): Boolean
     fun remove(threadId: String, id: String): Boolean
     fun reschedule(threadId: String, id: String, atMs: Long): Boolean
+    fun edit(threadId: String, id: String, edit: ScheduleEdit): TriggerDefinition?
     fun runNow(threadId: String, id: String): Boolean
 }
 

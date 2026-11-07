@@ -28,6 +28,7 @@ class ScheduleTaskTest {
             }
             override fun remove(threadId: String, id: String) = false
             override fun reschedule(threadId: String, id: String, atMs: Long) = false
+            override fun edit(threadId: String, id: String, edit: ScheduleEdit): TriggerDefinition? = null
             override fun runNow(threadId: String, id: String) = false
         }
         val tools = toolDispatcher(FakeScreen(), conversationId = "conversation", scheduleAdmin = admin)
@@ -47,6 +48,7 @@ class ScheduleTaskTest {
             override fun setEnabled(threadId: String, id: String, enabled: Boolean) = false
             override fun remove(threadId: String, id: String) = false
             override fun reschedule(threadId: String, id: String, atMs: Long) = false
+            override fun edit(threadId: String, id: String, edit: ScheduleEdit): TriggerDefinition? = null
             override fun runNow(threadId: String, id: String) = false
         }
         val tools = toolDispatcher(FakeScreen(), conversationId = "conversation", scheduleAdmin = admin)
@@ -101,6 +103,98 @@ class ScheduleTaskTest {
         assertEquals("09:00", saved?.calendarTime)
         assertEquals(listOf(1, 5), saved?.calendarDays)
         assertTrue(saved!!.nextAtMs > System.currentTimeMillis())
+    }
+
+    @Test fun severalLocalTimesBecomeOnePlan() = runBlocking {
+        var saved: TriggerDefinition? = null
+        val tools = toolDispatcher(FakeScreen(), conversationId = "conversation", scheduleTrigger = { saved = it; Scheduled(true) })
+        val result = tools.execute(Part.ToolCall("s", "schedule_task",
+            """{"goal":"喝水","repeatTimes":["20:00","08:00","12:30"],"repeatZone":"Asia/Shanghai"}"""), ActionPass())
+        assertEquals(true, result.content["scheduled"]?.toString()?.toBoolean())
+        assertEquals(listOf("08:00", "12:30", "20:00"), saved?.calendarTimes)
+        assertEquals(null, saved?.calendarTime)
+        assertEquals(listOf("08:00", "12:30", "20:00"), saved?.clockTimes)
+        assertEquals(nextCalendarAt(saved!!.clockTimes, "Asia/Shanghai", emptyList(),
+            result.content["atMs"]?.toString()!!.toLong() - 1), saved!!.nextAtMs)
+    }
+
+    @Test fun invalidLocalTimesAreRejectedBeforeSaving() = runBlocking {
+        var saved: TriggerDefinition? = null
+        val tools = toolDispatcher(FakeScreen(), conversationId = "conversation", scheduleTrigger = { saved = it; Scheduled(true) })
+        val result = tools.execute(Part.ToolCall("s", "schedule_task",
+            """{"goal":"喝水","repeatTimes":["8:00","25:00"]}"""), ActionPass())
+        assertEquals(false, result.content["scheduled"]?.toString()?.toBoolean())
+        assertEquals("\"invalid_time\"", result.content["reason"]?.toString())
+        assertEquals(null, saved)
+    }
+
+    @Test fun editingOnlyTheContentKeepsTheScheduleAndReportsTheNextRun() = runBlocking {
+        var received: ScheduleEdit? = null
+        val plan = TriggerDefinition("plan-1", "conversation", "喝水", 5_000, reminderText = "该喝水了")
+        val admin = object : ScheduleAdmin {
+            override fun list(threadId: String) = if (threadId == "conversation") listOf(plan) else emptyList()
+            override fun setEnabled(threadId: String, id: String, enabled: Boolean) = false
+            override fun remove(threadId: String, id: String) = false
+            override fun reschedule(threadId: String, id: String, atMs: Long) = false
+            override fun edit(threadId: String, id: String, edit: ScheduleEdit): TriggerDefinition? {
+                received = edit
+                return plan.copy(goal = edit.goal ?: plan.goal)
+            }
+            override fun runNow(threadId: String, id: String) = false
+        }
+        val tools = toolDispatcher(FakeScreen(), conversationId = "conversation", scheduleAdmin = admin)
+        val result = tools.execute(Part.ToolCall("e", "schedule_task",
+            """{"op":"edit","triggerId":"plan-1","goal":"多喝水","repeatTimes":["08:00","18:00"]}"""), ActionPass())
+        assertEquals(true, result.content["changed"]?.toString()?.toBoolean())
+        assertEquals("plan-1", result.content["triggerId"]?.toString()?.trim('"'))
+        assertEquals("多喝水", received?.goal)
+        assertEquals(listOf("08:00", "18:00"), received?.repeatTimes)
+        assertEquals(5_000L, result.content["nextAtMs"]?.toString()?.toLong())
+    }
+
+    @Test fun editingWithNothingOrBadFieldsSaysWhy() = runBlocking {
+        val plan = TriggerDefinition("plan-1", "conversation", "喝水", 5_000)
+        val admin = object : ScheduleAdmin {
+            override fun list(threadId: String) = if (threadId == "conversation") listOf(plan) else emptyList()
+            override fun setEnabled(threadId: String, id: String, enabled: Boolean) = false
+            override fun remove(threadId: String, id: String) = false
+            override fun reschedule(threadId: String, id: String, atMs: Long) = false
+            override fun edit(threadId: String, id: String, edit: ScheduleEdit): TriggerDefinition? = null
+            override fun runNow(threadId: String, id: String) = false
+        }
+        val tools = toolDispatcher(FakeScreen(), conversationId = "conversation", scheduleAdmin = admin)
+        val empty = tools.execute(Part.ToolCall("e", "schedule_task",
+            """{"op":"edit","triggerId":"plan-1"}"""), ActionPass())
+        assertEquals("\"nothing_to_edit\"", empty.content["reason"]?.toString())
+        val invalid = tools.execute(Part.ToolCall("e", "schedule_task",
+            """{"op":"edit","triggerId":"plan-1","repeatTimes":["9:00"]}"""), ActionPass())
+        assertEquals("\"invalid_time\"", invalid.content["reason"]?.toString())
+        val rejected = tools.execute(Part.ToolCall("e", "schedule_task",
+            """{"op":"edit","triggerId":"plan-1","goal":"多喝水"}"""), ActionPass())
+        assertEquals("\"invalid_edit\"", rejected.content["reason"]?.toString())
+        val missing = tools.execute(Part.ToolCall("e", "schedule_task",
+            """{"op":"edit","triggerId":"plan-2","goal":"多喝水"}"""), ActionPass())
+        assertEquals("\"plan_not_found\"", missing.content["reason"]?.toString())
+    }
+
+    @Test fun listingShowsEveryTimeOfDayAndTheWeekdays() = runBlocking {
+        val multi = TriggerDefinition("plan-1", "conversation", "喝水", 5_000,
+            calendarZone = "Asia/Shanghai", calendarDays = listOf(1, 5),
+            calendarTimes = listOf("08:00", "12:30", "20:00"))
+        val admin = object : ScheduleAdmin {
+            override fun list(threadId: String) = listOf(multi)
+            override fun setEnabled(threadId: String, id: String, enabled: Boolean) = false
+            override fun remove(threadId: String, id: String) = false
+            override fun reschedule(threadId: String, id: String, atMs: Long) = false
+            override fun edit(threadId: String, id: String, edit: ScheduleEdit): TriggerDefinition? = null
+            override fun runNow(threadId: String, id: String) = false
+        }
+        val tools = toolDispatcher(FakeScreen(), conversationId = "conversation", scheduleAdmin = admin)
+        val listed = tools.execute(Part.ToolCall("l", "schedule_task", """{"op":"list"}"""), ActionPass())
+        val text = listed.content.toString()
+        assertTrue(text.contains("08:00") && text.contains("12:30") && text.contains("20:00"))
+        assertTrue(text.contains("MON") && text.contains("FRI"))
+        assertFalse(text.contains("repeatAt"))
     }
 
     @Test fun unattendedRunCannotAskOrCreateAnotherSchedule() = runBlocking {

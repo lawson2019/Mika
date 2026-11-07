@@ -211,6 +211,54 @@ class TriggerEngineTest {
         assertEquals(nextCalendarAt("10:30", "Asia/Shanghai", emptyList(), times[1]), times[2])
     }
 
+    @Test fun severalDailyTimesFireInOrderAndRecomputeTheNextDay() {
+        val store = MemoryTriggerStore()
+        val start = Instant.parse("2026-10-31T23:00:00Z").toEpochMilli()
+        val first = nextCalendarAt(listOf("08:00", "12:30", "20:00"), "Asia/Shanghai", emptyList(), start)
+        store.upsert(TriggerDefinition("multi", "t", "do", first,
+            calendarTime = null, calendarZone = "Asia/Shanghai", calendarTimes = listOf("08:00", "12:30", "20:00")))
+        val sent = mutableListOf<Long>()
+        val engine = TriggerEngine(store, {}) { _, window -> sent += window.dueAtMs }
+        engine.fire(first + 1)
+        assertEquals(listOf(first), sent)
+        store.mark("multi:$first", TriggerWindowState.Delivered)
+        val second = store.get("multi")!!.nextAtMs
+        assertEquals(nextCalendarAt("12:30", "Asia/Shanghai", emptyList(), first), second)
+        engine.fire(second + 1)
+        store.mark("multi:$second", TriggerWindowState.Delivered)
+        val third = store.get("multi")!!.nextAtMs
+        assertEquals(nextCalendarAt("20:00", "Asia/Shanghai", emptyList(), second), third)
+        engine.fire(third + 1)
+        assertEquals(nextCalendarAt("08:00", "Asia/Shanghai", emptyList(), third), store.get("multi")!!.nextAtMs)
+        assertEquals(3, sent.size)
+        assertEquals(3, store.get("multi")!!.calendarTimes.size)
+    }
+
+    @Test fun upcomingWalksEveryTimeInTheDayThenRollsOver() {
+        val start = Instant.parse("2026-10-31T23:00:00Z").toEpochMilli()
+        val def = TriggerDefinition("multi", "t", "do",
+            nextCalendarAt(listOf("08:00", "12:30", "20:00"), "Asia/Shanghai", emptyList(), start),
+            calendarZone = "Asia/Shanghai", calendarTimes = listOf("08:00", "12:30", "20:00"))
+        val times = upcoming(def, def.nextAtMs, 4)
+        assertEquals(def.nextAtMs, times[0])
+        assertEquals(nextCalendarAt("12:30", "Asia/Shanghai", emptyList(), times[0]), times[1])
+        assertEquals(nextCalendarAt("20:00", "Asia/Shanghai", emptyList(), times[1]), times[2])
+        assertEquals(nextCalendarAt("08:00", "Asia/Shanghai", emptyList(), times[2]), times[3])
+    }
+
+    @Test fun rezoneRecalculatesEveryTimeOfDay() {
+        val store = MemoryTriggerStore()
+        val created = Instant.parse("2026-11-01T01:00:00Z").toEpochMilli()
+        store.upsert(TriggerDefinition("multi", "t", "do",
+            nextCalendarAt(listOf("08:00", "20:00"), "Asia/Shanghai", emptyList(), created),
+            calendarZone = "Asia/Shanghai", calendarTimes = listOf("08:00", "20:00")))
+        val now = Instant.parse("2026-11-01T02:00:00Z").toEpochMilli()
+        TriggerEngine(store, {}) { _, _ -> }.rezone(now, "Asia/Shanghai", ZoneId.of("America/New_York"))
+        val moved = store.get("multi")!!
+        assertEquals("America/New_York", moved.calendarZone)
+        assertEquals(nextCalendarAt(listOf("08:00", "20:00"), "America/New_York", emptyList(), now), moved.nextAtMs)
+    }
+
     @Test fun upcomingSkipsMissedIntervalsAndLimitsOneShots() {
         val interval = TriggerDefinition("i", "t", "do", 1_000, intervalMs = 1_000)
         assertEquals(listOf(5_000L, 6_000L, 7_000L), upcoming(interval, 4_500, 3))

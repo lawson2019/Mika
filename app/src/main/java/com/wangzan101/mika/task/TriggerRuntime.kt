@@ -21,8 +21,10 @@ import com.wangzan101.mika.core.trigger.Scheduled
 import com.wangzan101.mika.core.trigger.TriggerDefinition
 import com.wangzan101.mika.core.trigger.TriggerEngine
 import com.wangzan101.mika.core.trigger.ConditionOutcome
+import com.wangzan101.mika.core.trigger.ScheduleEdit
 import com.wangzan101.mika.core.trigger.TriggerSnapshot
 import com.wangzan101.mika.core.trigger.TriggerWindowState
+import com.wangzan101.mika.core.trigger.edited
 import com.wangzan101.mika.core.trigger.rescheduledTo
 import java.io.File
 import java.time.ZoneId
@@ -150,6 +152,16 @@ object TriggerRuntime {
             store.upsert(trigger.rescheduledTo(nextAtMs))
         }
         engine(context, store).rearm(System.currentTimeMillis())
+    }
+
+    /** 按编辑内容改计划;内容或时刻不合法时返回 null,原计划不动。 */
+    @Synchronized fun edit(context: Context, id: String, edit: ScheduleEdit): TriggerDefinition? {
+        val store = store(context)
+        val trigger = store.get(id) ?: return null
+        val updated = trigger.edited(edit, System.currentTimeMillis()) ?: return null
+        store.upsert(updated)
+        engine(context, store).rearm(System.currentTimeMillis())
+        return updated
     }
 
     @Synchronized fun runNow(context: Context, id: String) {

@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 /** 触发器和时段账本同文件原子替换；认领时段落盘成功后才返回给派发器。 */
 class FileTriggerStore(private val file: File) : TriggerStore {
     private val memory = MemoryTriggerStore(if (file.isFile) runCatching {
-        Json.decodeFromString<TriggerSnapshot>(file.readText())
+        JSON.decodeFromString<TriggerSnapshot>(file.readText())
     }.getOrElse {
         file.copyTo(File(file.parentFile, file.name + ".corrupt"), overwrite = true)
         TriggerSnapshot(emptyList(), emptyList())
@@ -37,7 +37,12 @@ class FileTriggerStore(private val file: File) : TriggerStore {
     private fun save() {
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")
-        FileOutputStream(temp).use { out -> out.write(Json.encodeToString(memory.snapshot()).toByteArray()); out.fd.sync() }
+        FileOutputStream(temp).use { out -> out.write(JSON.encodeToString(memory.snapshot()).toByteArray()); out.fd.sync() }
         check(temp.renameTo(file)) { "trigger store rename failed" }
+    }
+
+    private companion object {
+        /** 旧版本写的文件缺新字段;未知字段(更新版本写的)也不该让整份账本作废。 */
+        val JSON = Json { ignoreUnknownKeys = true }
     }
 }

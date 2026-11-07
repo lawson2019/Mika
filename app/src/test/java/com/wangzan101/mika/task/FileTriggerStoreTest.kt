@@ -27,6 +27,24 @@ class FileTriggerStoreTest {
         val restored = FileTriggerStore(file).get("daily")!!
         assertEquals("该喝水了", restored.reminderText)
         assertEquals("09:00", restored.calendarTime)
+        assertEquals(listOf("09:00"), restored.clockTimes)
         assertEquals(listOf(1, 5), restored.calendarDays)
+    }
+
+    @Test fun severalDailyTimesSurviveStoreReopen() {
+        val file = Files.createTempDirectory("trigger-test").resolve("triggers.json").toFile()
+        FileTriggerStore(file).upsert(TriggerDefinition("daily", "thread", "remind", 1_000,
+            calendarTimes = listOf("08:00", "12:30", "20:00"), calendarZone = "Asia/Shanghai"))
+        val restored = FileTriggerStore(file).get("daily")!!
+        assertEquals(listOf("08:00", "12:30", "20:00"), restored.clockTimes)
+        assertEquals(null, restored.calendarTime)
+        assertEquals("Asia/Shanghai", restored.calendarZone)
+    }
+
+    @Test fun unknownFieldsFromNewerVersionsAreTolerated() {
+        val file = Files.createTempDirectory("trigger-test").resolve("triggers.json").toFile()
+        file.writeText("""{"triggers":[{"id":"a","threadId":"t","goal":"g","nextAtMs":1000,"futureField":"x"}],"windows":[]}""")
+        val restored = FileTriggerStore(file).get("a")!!
+        assertEquals("g", restored.goal)
     }
 }

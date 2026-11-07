@@ -287,13 +287,13 @@
 
 ## 10. 定时与条件触发
 
-- **工具**:`schedule_task`(`core/general/ScheduleTask.kt`),`op` = create(默认)/ list / pause / resume / delete / run_now / reschedule。只在对话界面发起的运行里提供。恢复认领过(跑过或正在跑)的一次性计划时(`TriggerEngine.setEnabled`)不改,报 `already_ran`(计划页对这种计划也不给开关),要再跑用 reschedule 或 run_now。
-- **时间规则**(`TriggerDefinition`,`core/trigger/Triggers.kt`):一次性(`at`);固定间隔(`intervalMinutes`,错过多次合并成一次并记下错过几次);按当地时间每天或每周几(`repeatAt` + `repeatZone` + `weekdays`),跨夏令时保持钟点不变。
+- **工具**:`schedule_task`(`core/general/ScheduleTask.kt`),`op` = create(默认)/ list / pause / resume / delete / run_now / reschedule / edit。只在对话界面发起的运行里提供。恢复认领过(跑过或正在跑)的一次性计划时(`TriggerEngine.setEnabled`)不改,报 `already_ran`(计划页对这种计划也不给开关),要再跑用 reschedule 或 run_now。`edit` 用 `ScheduleEdit`(`core/trigger/ScheduleEdit.kt`)改内容与规则:goal、condition、reminder、下次时间、每日钟点表、星期、间隔,以及条件与提醒二选一;只改内容时保留原来的下次时间与启停状态,改了排期则重新启用并重算下次时间。
+- **时间规则**(`TriggerDefinition`,`core/trigger/Triggers.kt`):一次性(`at`);固定间隔(`intervalMinutes`,错过多次合并成一次并记下错过几次);按当地时间每天或每周几(`repeatAt`/`repeatTimes` + `repeatZone` + `weekdays`),跨夏令时保持钟点不变。多个钟点(如每天 08:00、12:30、20:00)写进 `calendarTimes`,只写一个时仍写 `calendarTime` 以便旧版本读取;两者互斥,统一用 `clockTimes` 读,`nextCalendarAt` 接受钟点表并要求严格 `HH:mm`、去重排序、最多 12 个。
 - **三种做法**:固定提醒(`reminder`)到点直接送达,不调模型;办事任务到点作为无人在场的 Run 执行;带 `condition` 的先用只读的网页和沙箱检查条件,结果结构化为 `ConditionOutcome`(`core/trigger/ConditionOutcome.kt`),检查出错不算「不满足」;只在条件从不满足变为满足时才执行动作。`whenIdle` 让它等到没有任务在跑时再做。
 - **调度**(`app/task/TriggerRuntime.kt`):系统闹钟只是唤醒信号,`FileTriggerStore` 是真源。派发前先写好下次时间和这一次的窗口(编号 = 触发器 + 到期时间),同一窗口不会派发两次。这一次的窗口已经记过账的计划不再认领,`rearm` 也不为它排闹钟(判断条件和认领时查账本的条件相同,见 `slotTaken`):按过期的到期时间排就是马上响,响了又认领不了,会一直空转。能用精确闹钟就用,没有权限时第一次会发通知引导用户去系统设置打开,`schedule_task` 的结果也告诉模型「可能不准时」;计划页显示提示。开机、改时间、改时区、精确闹钟权限变化时重新布置(`app/setup/BootRestoreReceiver.kt`),App 启动时也会。设备时区记在 `triggers` 里(`TriggerRuntime.syncTimeZone`):改时区时、App 启动时(关着时改了时区也补上;第一次只记下当前的)和记下的比,变了就把跟随旧设备时区的当地时间计划改到新时区重算(`TriggerEngine.rezone`),明确钉了别的时区的不动。
 - **结果回原对话**:到点的任务就在创建它的对话里运行,结果、提醒和失败说明都写回那个对话,通知点开就是它。
 - **进程中途被杀**:提醒重新送达(按编号去重);其他已认领的窗口标为结果不明,在原对话里说明并通知「Mika 不会自动重复操作」。
-- **计划页**(`app/ui/PlansScreen.kt`):分「进行中」「已停用」两段,每条三行(做什么、重复规则与下次时间或状态、上次结果),右边开关即暂停与恢复;点一行升起操作面板:看对话、立即执行、改时间、删除。
+- **计划页**(`app/ui/PlansScreen.kt`):分「进行中」「已停用」两段,每条三行(做什么、重复规则与下次时间或状态、上次结果),右边开关即暂停与恢复;点一行升起操作面板:看对话、立即执行、编辑、删除。编辑面板(`PlanEditDialog()`)可改 goal、条件、提醒、每日钟点表、星期、间隔和下次时间,边填边校验(条件与提醒不能同时填),并预览接下来几次触发。页上「新建定时任务」不开口也能建一条(`PlanCreateDialog()`):先选重复方式(钟点/间隔/只跑一次)再按方式填,经 `planCreateEdit` 拼出 `ScheduleEdit`、`toTrigger` 校验后落盘;结果写回用户此刻所在的对话,没有就为这条任务单开一个。
 
 ## 11. 知识与技能
 
