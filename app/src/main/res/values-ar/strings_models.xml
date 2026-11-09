@@ -249,4 +249,7 @@
     <string name="models_group_delete_body">ستعود الأدوار التي تستخدمها إلى غير محدد أو بلا أو النموذج الرئيسي.</string>
     <string name="models_group_used_by">يُستخدم كـ %1$s</string>
     <string name="models_group_member_context">السياق</string>
-</resources>
+
+    <string name="models_daily_token_budget">ميزانية Token اليومية للمزود</string>
+    <string name="models_daily_token_budget_sub">تُحسب رموز الإدخال والإخراج المُبلغ عنها لجميع نماذج هذا المزود وأغراضه خلال اليوم المحلي. عند بلوغ الحد يُحظر الطلب التالي، وقد تتجاوزه الطلبات الجارية. الاستخدام غير المُبلغ عنه يساوي صفرًا، وتُستأنف الطلبات عند تغير التاريخ المحلي.</string>
+    <string name="models_daily_token_budget_save_failed">تعذر حفظ الميزانية. ما زال الإعداد السابق ساريًا.</string></resources>

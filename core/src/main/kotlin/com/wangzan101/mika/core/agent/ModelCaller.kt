@@ -120,9 +120,12 @@ internal class ModelCaller(
             complete(history, specs, picked.asPool(), RetryPolicy.NONE, step, onText)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: ModelError.TaskBudgetExceeded) {
+            // 整个运行共用一份预算；轻量失败后不能再改问主模型。
+            throw e
         } catch (e: Exception) {
             // Key、额度、模型名、请求本身不对,重试也没用:本任务余下的步都用主模型
-            if (e is ModelError.Auth || e is ModelError.QuotaExceeded || e is ModelError.ModelNotFound ||
+            if (e is ModelError.Auth || e is ModelError.QuotaExceeded || e is ModelError.DailyBudgetExceeded || e is ModelError.ModelNotFound ||
                 e is ModelError.ModelNotAvailable || e is ModelError.ToolsUnsupported ||
                 e is ModelError.ChatGptLimitReached || e is ModelError.ChatGptNotEligible || e is ModelError.SignInExpired || e is ModelError.AccountPlanNotAllowed ||
                 e is ModelError.GroupUnavailable || e is ModelError.GroupExhausted ||

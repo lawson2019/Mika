@@ -241,4 +241,7 @@
     <string name="models_group_delete_body">Роли, использующие её, вернутся к не выбрано, нет или основной модели.</string>
     <string name="models_group_used_by">Используется как %1$s</string>
     <string name="models_group_member_context">Контекст</string>
-</resources>
+
+    <string name="models_daily_token_budget">Дневной бюджет токенов провайдера</string>
+    <string name="models_daily_token_budget_sub">Учитываются сообщённые входные и выходные токены всех моделей и назначений провайдера за локальный календарный день. При достижении лимита следующий запрос блокируется; выполняемые запросы могут превысить его. Несообщённое использование считается равным 0. Учёт начинается заново при смене локальной даты.</string>
+    <string name="models_daily_token_budget_save_failed">Не удалось сохранить бюджет. Прежняя настройка остаётся в силе.</string></resources>

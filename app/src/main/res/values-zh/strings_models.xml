@@ -230,4 +230,7 @@
     <string name="models_group_delete_body">用这个组的用途会退回没选、不用或用主模型。</string>
     <string name="models_group_used_by">用作 %1$s</string>
     <string name="models_group_member_context">上下文</string>
-</resources>
+
+    <string name="models_daily_token_budget">服务商每日 Token 预算</string>
+    <string name="models_daily_token_budget_sub">按本地日历日统计这家所有模型和用途的已报告输入与输出 Token。达到预算后不再发起下一次请求；在途请求可能超量，未报告用量按 0 计。本地日期变更后自动恢复。</string>
+    <string name="models_daily_token_budget_save_failed">预算保存失败，原设置未变。</string></resources>

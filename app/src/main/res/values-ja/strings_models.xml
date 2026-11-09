@@ -229,4 +229,7 @@
     <string name="models_group_delete_body">このグループを使っている役割は、未設定・なし・メインモデルに戻ります。</string>
     <string name="models_group_used_by">%1$s として使用</string>
     <string name="models_group_member_context">コンテキスト</string>
-</resources>
+
+    <string name="models_daily_token_budget">プロバイダーの1日の Token 予算</string>
+    <string name="models_daily_token_budget_sub">ローカル暦日で、このプロバイダーの全モデル・全用途について報告された入力・出力 Token を集計します。予算に達すると次のリクエストを止めます。実行中のリクエストで超過する場合があり、未報告の使用量は 0 です。ローカル日付が変わると再開します。</string>
+    <string name="models_daily_token_budget_save_failed">予算を保存できませんでした。以前の設定が引き続き使われます。</string></resources>

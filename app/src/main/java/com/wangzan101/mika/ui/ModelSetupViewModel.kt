@@ -918,6 +918,12 @@ class ModelSetupViewModel(
         return saved
     }
 
+    fun setDailyTokenBudget(providerId: String, limit: Long?): Boolean {
+        val saved = store.setDailyTokenBudget(providerId, limit)
+        sync()
+        return saved
+    }
+
     fun setModelVision(providerId: String, model: String, sees: Boolean) {
         store.setModelVision(providerId, model, sees)
         sync()

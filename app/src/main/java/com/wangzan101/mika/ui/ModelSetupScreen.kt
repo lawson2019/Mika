@@ -187,6 +187,7 @@ fun ModelSetupScreen(
                     })
                 },
                 useAsMain = { vm.useAsMain(provider.id) },
+                setDailyBudget = { vm.setDailyTokenBudget(provider.id, it) },
             )
             if (allModels) {
                 BackHandler { allModels = false }
